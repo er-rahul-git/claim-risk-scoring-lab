@@ -1,0 +1,19 @@
+# Settings the workflows read, per environment.
+# Role ARNs are NOT here: they are GitHub Environment variables (AWS_TERRAFORM_ROLE_ARN,
+# AWS_DEPLOY_ROLE_ARN) so each environment only sees its own.
+python_version: "3.12"
+terraform_version: "1.10.5"
+dockerfile: Dockerfile.devops
+environments:
+  nonprod:
+    region: ap-south-1
+    ecr_repository: crs-nonprod-api
+    asg_name: crs-nonprod-api
+    image_tag_parameter: /crs-nonprod/api/image_tag
+    auto_deploy: true          # every merge to main
+  prod:
+    region: ap-south-1
+    ecr_repository: crs-prod-api
+    asg_name: crs-prod-api
+    image_tag_parameter: /crs-prod/api/image_tag
+    auto_deploy: false         # manual run + required reviewer on the GitHub Environment

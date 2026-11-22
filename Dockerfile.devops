@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1.7
+# Common enterprise Dockerfile.devops shape: build args, a builder stage that installs
+# dependencies (private index passed as a build SECRET, never baked into a layer),
+# and a slim runtime stage that runs as a non-root user.
+ARG PYTHON_VERSION=3.12
+
+## Stage 1 - Build stage
+FROM python:${PYTHON_VERSION}-slim AS builder
+WORKDIR /app
+COPY requirements.txt .
+# Optional private index (JFrog/CodeArtifact):
+#   docker build --secret id=pip_index_url,env=PIP_INDEX_URL -f Dockerfile.devops .
+RUN --mount=type=secret,id=pip_index_url,required=false \
+    --mount=type=cache,target=/root/.cache/pip \
+    if [ -f /run/secrets/pip_index_url ]; then export PIP_INDEX_URL="$(cat /run/secrets/pip_index_url)"; fi && \
+    pip install --upgrade pip && \
+    pip install --prefix=/install -r requirements.txt
+
+## Stage 2 - Final stage
+FROM python:${PYTHON_VERSION}-slim AS runtime
+ARG GIT_SHA=dev
+LABEL org.opencontainers.image.title="crs-audit-api" \
+      org.opencontainers.image.revision=$GIT_SHA
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    APP_ENV=local \
+    GIT_SHA=$GIT_SHA
+RUN groupadd --gid 10001 nonroot && useradd --uid 10001 --gid nonroot --create-home nonroot
+WORKDIR /app
+COPY --from=builder /install /usr/local
+COPY audit_api/ ./audit_api/
+COPY configs/ ./configs/
+RUN mkdir -p /app/.localbucket && chown nonroot:nonroot /app/.localbucket
+USER nonroot
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"
+CMD ["uvicorn", "audit_api.app:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -1,0 +1,63 @@
+# Terraform through GitHub only: plan on PR (posted as a comment), apply nonprod on merge,
+# apply prod by manual run with a required reviewer on the `prod` GitHub Environment.
+name: infra
+
+on:
+  pull_request:
+    paths: ["infra/**", "lambdas/**"]
+  push:
+    branches: [main]
+    paths: ["infra/**", "lambdas/**"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to apply
+        type: choice
+        options: [nonprod, prod]
+        default: nonprod
+
+permissions:
+  id-token: write        # GitHub OIDC -> AWS, no stored keys
+  contents: read
+  pull-requests: write   # post the plan as a PR comment
+
+concurrency:
+  group: infra-${{ inputs.environment || 'nonprod' }}
+  cancel-in-progress: false   # never cancel a running apply
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'nonprod' }}
+    env:
+      ENV: ${{ inputs.environment || 'nonprod' }}
+      TF_IN_AUTOMATION: "true"
+    defaults:
+      run:
+        working-directory: infra/terraform/envs/${{ inputs.environment || 'nonprod' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_TERRAFORM_ROLE_ARN }}
+          aws-region: ap-south-1
+      - run: terraform init -input=false -backend-config=backend.hcl
+      - run: terraform validate
+      - name: Plan
+        id: plan
+        run: terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+      - name: Comment plan on the PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infra/terraform/envs/${{ env.ENV }}/plan.txt', 'utf8');
+            const body = `### Terraform plan: \`${{ env.ENV }}\`\n<details><summary>show</summary>\n\n\`\`\`\n${plan.slice(-60000)}\n\`\`\`\n</details>`;
+            await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+      - name: Apply
+        if: github.event_name != 'pull_request'
+        run: terraform apply -input=false tfplan

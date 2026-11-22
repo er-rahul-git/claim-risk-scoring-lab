@@ -1,0 +1,12 @@
+# Prod, merged over base_config.yaml (this file wins).
+environment: prod
+aws:
+  region: ap-south-1
+storage:
+  backend: s3
+scripts:
+  timeout_seconds: 60
+observability:
+  arize:
+    enabled: false
+    space: CRS-Prod

@@ -1,0 +1,44 @@
+# Base config shared by all environments. Files in configs/environments/ are merged
+# over this file and win on conflicts. Env vars APP__<section>__<key> win over both
+# (e.g. APP__storage__bucket=crs-data-nonprod-123 sets storage.bucket).
+schema_version: 1
+
+application:
+  name: claim-risk-scoring
+  port: 8080
+
+# Where every hand-off lives. backend: s3 (AWS) | local (laptop, a folder that mimics a bucket)
+storage:
+  backend: s3
+  bucket: ""                 # injected per environment (EC2 user data / Lambda env)
+  local_root: .localbucket
+  prefixes:
+    requests: requests/
+    responses: responses/
+    output: output/
+    errors: errors/
+
+# Registry of the parallel scripts the API runs (agreed step 5).
+scripts:
+  registry: [provider, cms, payer]
+  timeout_seconds: 30
+
+# Composite score settings (agreed step 6).
+composite:
+  weights: { provider: 0.40, cms: 0.35, payer: 0.25 }
+  thresholds: { high: 0.70, medium: 0.40 }
+
+# Registry of Arize spaces. Environment files refer to one by name (registry pattern).
+arize_spaces:
+  - name: CRS-NonProd
+    secret: crs/arize/nonprod     # Secrets Manager secret holding {"space_id": "...", "api_key": "..."}
+  - name: CRS-Prod
+    secret: crs/arize/prod
+
+model:
+  arize_model_name: claim-risk-composite
+
+observability:
+  arize:
+    enabled: false
+    space: null

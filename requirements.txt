@@ -1,0 +1,8 @@
+# API image (runtime)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pyyaml>=6.0
+jsonschema>=4.22
+boto3>=1.34
+# arize>=8.0          # uncomment when observability.arize.enabled is switched on

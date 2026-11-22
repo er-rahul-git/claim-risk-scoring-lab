@@ -1,0 +1,5 @@
+# Laptop: a folder stands in for the S3 bucket, Arize off.
+environment: local
+storage:
+  backend: local
+  bucket: local-bucket

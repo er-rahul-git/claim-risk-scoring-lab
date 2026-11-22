@@ -1,0 +1,12 @@
+{
+  "request_id": "demo-001",
+  "submitted_by": "practice-ui",
+  "claim": {
+    "claim_id": "CLM-2026-000123",
+    "provider_npi": "1234567893",
+    "payer_id": "MCR-PARTB",
+    "procedure_codes": ["99215", "93306", "80053"],
+    "billed_amount": 18450.75,
+    "service_date": "2026-10-14"
+  }
+}

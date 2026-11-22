@@ -1,0 +1,11 @@
+{
+  "request_id": "demo-bad-001",
+  "claim": {
+    "claim_id": "CLM-2026-000999",
+    "provider_npi": "12AB",
+    "payer_id": "MCR",
+    "procedure_codes": [],
+    "billed_amount": -5,
+    "service_date": "not-a-date"
+  }
+}

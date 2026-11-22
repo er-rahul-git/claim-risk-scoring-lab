@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claim-risk-scoring-lab"
+version = "0.1.0"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+include = ["audit_api*"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests/unit"]
+pythonpath = ["."]
+addopts = "-ra --cov=audit_api --cov=lambdas --cov-report=term-missing --cov-config=pyproject.toml"
+
+[tool.coverage.run]
+branch = true
+omit = ["tests/*", "*/__init__.py"]
+
+[tool.coverage.report]
+skip_empty = true
+fail_under = 80
+exclude_lines = ["pragma: no cover", "if __name__ == .__main__.:", "raise NotImplementedError"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]

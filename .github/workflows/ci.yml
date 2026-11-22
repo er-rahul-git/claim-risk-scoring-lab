@@ -1,0 +1,69 @@
+# CI: every pull request and push. No AWS access needed.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Lint
+        run: ruff check .
+      - name: Unit tests + coverage gate
+        run: python -m pytest
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+      - name: Format check
+        run: terraform fmt -check -recursive infra/terraform
+      - name: Validate both environments (no backend, no AWS)
+        run: |
+          for env in nonprod prod; do
+            terraform -chdir=infra/terraform/envs/$env init -backend=false -input=false
+            terraform -chdir=infra/terraform/envs/$env validate
+          done
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.devops
+          load: true
+          push: false
+          tags: crs-audit-api:${{ github.sha }}
+          build-args: GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Container health check
+        run: |
+          docker run -d --name api -p 8080:8080 -e APP_ENV=local crs-audit-api:${{ github.sha }}
+          for i in $(seq 1 20); do curl -fs localhost:8080/health && exit 0; sleep 1; done
+          docker logs api; exit 1

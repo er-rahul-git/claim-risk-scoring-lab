@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audit result written to output/{request_id}.json",
+  "type": "object",
+  "required": ["request_id", "status", "completed_at"],
+  "properties": {
+    "request_id": { "type": "string" },
+    "status": { "enum": ["COMPLETED", "INVALID", "ERROR"] },
+    "completed_at": { "type": "string" },
+    "composite_score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "risk_label": { "enum": ["HIGH", "MEDIUM", "LOW"] },
+    "components": { "type": "object" },
+    "errors": { "type": "array", "items": { "type": "string" } },
+    "model_version": { "type": "string" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "status": { "const": "COMPLETED" } } },
+      "then": { "required": ["composite_score", "risk_label", "components"] }
+    },
+    {
+      "if": { "properties": { "status": { "enum": ["INVALID", "ERROR"] } } },
+      "then": { "required": ["errors"] }
+    }
+  ]
+}

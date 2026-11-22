@@ -1,0 +1,10 @@
+# Non-prod, merged over base_config.yaml (this file wins).
+environment: nonprod
+aws:
+  region: ap-south-1
+storage:
+  backend: s3          # bucket name comes from APP__storage__bucket (set by Terraform user data)
+observability:
+  arize:
+    enabled: false     # switch on after Q7 (data approval) is answered
+    space: CRS-NonProd

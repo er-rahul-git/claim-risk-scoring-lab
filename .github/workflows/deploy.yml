@@ -1,0 +1,96 @@
+# Application deploy. nonprod: every merge to main touching app code.
+# prod: manual run with the git SHA already proven in nonprod - the SAME image is copied, never rebuilt.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+    paths: ["audit_api/**", "configs/**", "Dockerfile.devops", "requirements.txt"]
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        options: [nonprod, prod]
+        default: nonprod
+      git_sha:
+        description: "prod only: the SHA that passed in nonprod"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  nonprod:
+    if: github.event_name == 'push' || inputs.environment == 'nonprod'
+    runs-on: ubuntu-latest
+    environment: nonprod
+    env:
+      ECR_REPO: crs-nonprod-api
+      ASG: crs-nonprod-api
+      TAG_PARAM: /crs-nonprod/api/image_tag
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - uses: docker/setup-buildx-action@v3
+      - name: Build and push (tag = git SHA, immutable)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.devops
+          push: true
+          tags: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ github.sha }}
+          build-args: GIT_SHA=${{ github.sha }}
+      - name: Point the environment at the new image and roll instances
+        run: |
+          aws ssm put-parameter --name "$TAG_PARAM" --value "${{ github.sha }}" --type String --overwrite
+          ID=$(aws autoscaling start-instance-refresh --auto-scaling-group-name "$ASG" --query InstanceRefreshId --output text)
+          echo "instance refresh $ID"
+          for i in $(seq 1 60); do
+            STATUS=$(aws autoscaling describe-instance-refreshes --auto-scaling-group-name "$ASG" --instance-refresh-ids "$ID" --query 'InstanceRefreshes[0].Status' --output text)
+            echo "$STATUS"; [ "$STATUS" = "Successful" ] && exit 0
+            case "$STATUS" in Failed|Cancelled|RollbackSuccessful) exit 1;; esac
+            sleep 20
+          done; exit 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Smoke test
+        run: |
+          pip install boto3 -q
+          python tests/smoke/smoke_test.py --env nonprod --account "$(aws sts get-caller-identity --query Account --output text)"
+
+  prod:
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod            # required reviewer approves before this job starts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.git_sha }}
+      - name: Pull the image that passed nonprod
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_NONPROD_DEPLOY_ROLE_ARN }}   # read access to the nonprod ECR repo
+          aws-region: ap-south-1
+      - id: ecr_np
+        uses: aws-actions/amazon-ecr-login@v2
+      - run: docker pull ${{ steps.ecr_np.outputs.registry }}/crs-nonprod-api:${{ inputs.git_sha }}
+      - name: Switch to the prod account
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ap-south-1
+      - id: ecr_p
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Push the same image to prod ECR, then roll
+        run: |
+          docker tag ${{ steps.ecr_np.outputs.registry }}/crs-nonprod-api:${{ inputs.git_sha }} ${{ steps.ecr_p.outputs.registry }}/crs-prod-api:${{ inputs.git_sha }}
+          docker push ${{ steps.ecr_p.outputs.registry }}/crs-prod-api:${{ inputs.git_sha }}
+          aws ssm put-parameter --name /crs-prod/api/image_tag --value "${{ inputs.git_sha }}" --type String --overwrite
+          aws autoscaling start-instance-refresh --auto-scaling-group-name crs-prod-api

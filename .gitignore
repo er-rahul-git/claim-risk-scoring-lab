@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+*.egg-info/
+# Local bucket used by `make run`
+.localbucket/
+# Secrets
+.env
+# Terraform: state lives in S3, plans and providers never committed
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+infra/terraform/**/build/
