@@ -63,3 +63,8 @@ variable "permissions_boundary_arn" {
   type    = string
   default = null
 }
+variable "ui_allowed_origins" {
+  description = "Where the browser UI is served from (CORS for presign + S3 PUT)"
+  type        = list(string)
+  default     = ["http://localhost:8001"]
+}

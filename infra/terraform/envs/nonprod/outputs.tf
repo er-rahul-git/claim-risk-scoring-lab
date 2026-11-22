@@ -6,3 +6,4 @@ output "image_tag_parameter" { value = module.api_ec2.image_tag_parameter_name }
 output "websocket_url" { value = module.notifier_ws.ws_url }
 output "trigger_dlq_url" { value = module.lambda_trigger.dlq_url }
 output "alerts_topic_arn" { value = module.observability.alerts_topic_arn }
+output "presign_url" { value = module.presign.presign_url }

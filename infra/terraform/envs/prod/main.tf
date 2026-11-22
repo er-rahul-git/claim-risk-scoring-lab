@@ -56,6 +56,7 @@ module "storage" {
   force_destroy        = var.force_destroy
   short_retention_days = var.short_retention_days
   long_retention_days  = var.long_retention_days
+  cors_allowed_origins = var.ui_allowed_origins
 }
 
 module "iam" {
@@ -125,6 +126,16 @@ module "notifier_ws" {
   bucket_arn          = module.storage.bucket_arn
   kms_key_arn         = module.storage.kms_key_arn
   alarm_topic_arn     = module.observability.alerts_topic_arn
+}
+
+module "presign" {
+  source          = "../../modules/presign"
+  name_prefix     = local.name_prefix
+  source_dir      = "${local.repo_root}/lambdas/presign"
+  bucket_name     = module.storage.bucket_name
+  bucket_arn      = module.storage.bucket_arn
+  kms_key_arn     = module.storage.kms_key_arn
+  allowed_origins = var.ui_allowed_origins
 }
 
 # The event wiring (agreed steps 2 and 7). Lives here because it joins storage and both Lambdas.

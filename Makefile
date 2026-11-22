@@ -17,6 +17,9 @@ lint: ## ruff + terraform fmt check
 	ruff check .
 	terraform fmt -check -recursive infra/terraform || true
 
+dev: ## UI + API + local AWS stand-ins -> open http://localhost:8000
+	python scripts/dev.py
+
 run: ## run the API locally (folder .localbucket/ plays S3)
 	APP_ENV=$(APP_ENV) uvicorn audit_api.app:app --port 8080 --reload
 

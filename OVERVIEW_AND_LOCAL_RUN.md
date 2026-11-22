@@ -13,9 +13,18 @@ to the Risk Scoring API. The API validates the request, runs the Provider, CMS a
 ```bash
 make venv && source .venv/bin/activate     # Python 3.11+
 make test                                  # unit tests + coverage
-make run                                   # terminal 1
-make demo                                  # terminal 2
+make dev                                   # open http://localhost:8000
 ```
+
+`make dev` starts two processes:
+
+| Port | Process | Plays the role of |
+| --- | --- | --- |
+| 8080 | the real Risk Scoring API (`APP_ENV=local`) | EC2 behind the internal ALB |
+| 8000 | `local_stack/app.py` | UI hosting, presign Lambda, S3 PUT + S3 events, WebSocket API + DynamoDB, notifier |
+
+The trigger Lambda is not emulated: `local_stack` calls the real `lambdas/trigger/handler.py` with the same
+event shape S3 sends. Without the UI you can still use `make run` + `make demo`.
 
 `APP_ENV=local` switches storage to the folder `.localbucket/`; everything else is the same code that runs in AWS.
 Inspect the files the flow produced:
@@ -70,7 +79,22 @@ Merging app code to `main` runs `deploy.yml`: build the image, push `crs-nonprod
 SSM `/crs-nonprod/api/image_tag`, roll the Auto Scaling group, run the smoke test.
 Prod: **Actions → deploy → Run workflow → prod**, give the SHA that passed in nonprod. The same image is copied.
 
-### 2.5 Smoke test by hand
+### 2.5 Use the UI against AWS
+
+```bash
+cd infra/terraform/envs/nonprod
+terraform output -raw presign_url      # -> PRESIGN_URL
+terraform output -raw websocket_url    # -> WS_URL
+cd ../../../..
+cp ui/config.example.js ui/config.js   # paste the two values, set ENV
+python -m http.server 8001 -d ui       # open http://localhost:8001
+```
+
+`ui_allowed_origins` (default `http://localhost:8001`) controls CORS on the presign Function URL and the
+bucket. To host the UI for others, put `ui/` on S3 + CloudFront and add that origin. The Function URL has
+no auth: fine for practice, but a real UI would sit behind SSO.
+
+### 2.6 Smoke test by hand
 
 ```bash
 aws sso login --profile crs-nonprod
@@ -78,7 +102,7 @@ AWS_PROFILE=crs-nonprod python tests/smoke/smoke_test.py --env nonprod \
   --account <nonprod-account-id> --ws "$(terraform -chdir=infra/terraform/envs/nonprod output -raw websocket_url)"
 ```
 
-### 2.6 Tear down at the end of the day
+### 2.7 Tear down at the end of the day
 
 ```bash
 make tf-destroy ENV=nonprod     # or run the destroy from a PR-less manual workflow if you add one

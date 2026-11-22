@@ -15,6 +15,12 @@ variable "short_retention_days" {
   default     = 30
 }
 
+variable "cors_allowed_origins" {
+  description = "Browser origins allowed to PUT to presigned URLs (the UI). Empty = no CORS."
+  type        = list(string)
+  default     = []
+}
+
 variable "long_retention_days" {
   description = "output/ and errors/"
   type        = number
@@ -93,6 +99,17 @@ resource "aws_s3_bucket_lifecycle_configuration" "data" {
         noncurrent_days = 7
       }
     }
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "ui" {
+  count  = length(var.cors_allowed_origins) > 0 ? 1 : 0
+  bucket = aws_s3_bucket.data.id
+  cors_rule {
+    allowed_methods = ["PUT"]
+    allowed_origins = var.cors_allowed_origins
+    allowed_headers = ["content-type", "x-amz-server-side-encryption"]
+    max_age_seconds = 300
   }
 }
 

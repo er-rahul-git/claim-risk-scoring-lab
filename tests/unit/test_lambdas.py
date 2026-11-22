@@ -79,3 +79,16 @@ def test_subscribe_then_notify(monkeypatch):
     out = notifier.handler(s3_event("crs-data", "output/demo-001.json"), ws_client=FakeWS())
     assert out == {"pushed": ["demo-001"]}
     assert posted["conn-1"]["status"] == "COMPLETED"
+
+
+@mock_aws
+def test_presign_returns_scoped_url(monkeypatch):
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "ap-south-1")
+    monkeypatch.setenv("BUCKET", "crs-data")
+    presign = load("presign")
+    out = presign.handler({"queryStringParameters": {"request_id": "ui-003"}})
+    body = json.loads(out["body"])
+    assert out["statusCode"] == 200
+    assert "requests/ui-003.json" in body["upload_url"]
+    assert body["headers"]["x-amz-server-side-encryption"] == "aws:kms"
+    assert presign.handler({"queryStringParameters": {"request_id": "../etc"}})["statusCode"] == 400

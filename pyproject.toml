@@ -14,7 +14,7 @@ include = ["audit_api*"]
 minversion = "8.0"
 testpaths = ["tests/unit"]
 pythonpath = ["."]
-addopts = "-ra --cov=audit_api --cov=lambdas --cov-report=term-missing --cov-config=pyproject.toml"
+addopts = "-ra --cov=audit_api --cov=lambdas --cov=local_stack --cov-report=term-missing --cov-config=pyproject.toml"
 
 [tool.coverage.run]
 branch = true

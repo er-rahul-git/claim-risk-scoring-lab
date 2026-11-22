@@ -2,7 +2,8 @@
 
 ```mermaid
 flowchart LR
-  UI[UI] -- request JSON --> REQ[(S3 requests/)]
+  UI[UI] -- get upload URL --> PS[Presign Lambda]
+  UI -- PUT request JSON --> REQ[(S3 requests/)]
   REQ -- S3 event --> TL[Trigger Lambda]
   TL -- "POST {request_id, s3_path}" --> ALB[Internal ALB]
   ALB --> API[Risk Scoring API<br/>EC2 ASG, Docker]
@@ -22,7 +23,7 @@ flowchart LR
 
 | Agreed step | Where in this repo |
 | --- | --- |
-| 1. UI writes request JSON to S3 | `lambdas/presign` (practice UI), `samples/` |
+| 1. UI writes request JSON to S3 | `ui/index.html` -> `lambdas/presign` (Function URL) -> presigned PUT; `modules/presign` |
 | 2. S3 watcher triggers Lambda | `aws_s3_bucket_notification.flow` in `envs/*/main.tf` (prefix `requests/`) |
 | 3. Lambda calls API with S3 path | `lambdas/trigger/handler.py`, `modules/lambda_trigger` |
 | 4. Validate against schema; error to output, no component calls | `audit_api/orchestrator.py`, `schema/request.schema.json` |
@@ -52,6 +53,7 @@ flowchart LR
 | `crs-<env>-trigger-lambda` | VPC networking + logs; send to its DLQ | any S3 access (it only passes the path) |
 | `crs-<env>-notifier-lambda` | read `output/*`; get/delete connection items; post to its WebSocket stage | write to S3 |
 | `crs-<env>-ws-lambda` | put connection items | S3 |
+| `crs-<env>-presign-lambda` | sign PUTs to `requests/*` only; KMS data key | read anything, other prefixes |
 | `crs-github-terraform-<env>` | Terraform plan/apply (broad, practice only) | be assumed outside its GitHub environment |
 | `crs-github-deploy-<env>` | push to its ECR repo, set the image tag, start instance refresh, run the smoke test | change infrastructure |
 
