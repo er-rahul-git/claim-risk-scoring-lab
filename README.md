@@ -58,3 +58,6 @@ Without the UI: `make run` (terminal 1) and `make demo` / `make demo-invalid` (t
 | Terraform | HCL parses; module inputs/outputs/tfvars cross-checked | `terraform init -backend=false && terraform validate`, then plan |
 | Dockerfile | - | `make docker && make docker-run` (CI also builds it) |
 | Workflows | YAML parses | first PR on GitHub |
+
+
+## test ci/cd
