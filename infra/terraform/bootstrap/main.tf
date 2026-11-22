@@ -141,34 +141,63 @@ resource "aws_iam_role" "deploy" {
   assume_role_policy = data.aws_iam_policy_document.deploy_trust.json
 }
 
-resource "aws_iam_role_policy" "deploy" {
-  role = aws_iam_role.deploy.id
-  name = "deploy-only"
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      { Sid = "EcrAuth", Effect = "Allow", Action = ["ecr:GetAuthorizationToken"], Resource = "*" },
-      {
-        Sid    = "PushImage", Effect = "Allow"
-        Action = ["ecr:BatchCheckLayerAvailability", "ecr:InitiateLayerUpload", "ecr:UploadLayerPart",
-        "ecr:CompleteLayerUpload", "ecr:PutImage", "ecr:BatchGetImage", "ecr:DescribeImages"]
-        Resource = "arn:aws:ecr:${var.region}:${local.account_id}:repository/${local.name_prefix}-api"
-      },
-      {
-        Sid = "SetImageTag", Effect = "Allow", Action = ["ssm:PutParameter", "ssm:GetParameter"]
-        Resource = "arn:aws:ssm:${var.region}:${local.account_id}:parameter/${local.name_prefix}/api/image_tag"
-      },
-      {
-        Sid    = "RollInstances", Effect = "Allow"
-        Action = ["autoscaling:StartInstanceRefresh", "autoscaling:DescribeInstanceRefreshes", "autoscaling:DescribeAutoScalingGroups"]
-        Resource = "*"
-      },
-      { Sid = "SmokeTestBucket", Effect = "Allow", Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"],
-        Resource = ["arn:aws:s3:::${local.name_prefix}-data-${local.account_id}", "arn:aws:s3:::${local.name_prefix}-data-${local.account_id}/*"] },
-      { Sid = "SmokeTestKey", Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = "*",
-        Condition = { StringEquals = { "kms:ViaService" = "s3.${var.region}.amazonaws.com" } } },
+data "aws_iam_policy_document" "deploy" {
+  statement {
+    sid       = "EcrAuth"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"]
+  }
+  statement {
+    sid = "PushImage"
+    actions = [
+      "ecr:BatchCheckLayerAvailability",
+      "ecr:InitiateLayerUpload",
+      "ecr:UploadLayerPart",
+      "ecr:CompleteLayerUpload",
+      "ecr:PutImage",
+      "ecr:BatchGetImage",
+      "ecr:DescribeImages",
     ]
-  })
+    resources = ["arn:aws:ecr:${var.region}:${local.account_id}:repository/${local.name_prefix}-api"]
+  }
+  statement {
+    sid       = "SetImageTag"
+    actions   = ["ssm:PutParameter", "ssm:GetParameter"]
+    resources = ["arn:aws:ssm:${var.region}:${local.account_id}:parameter/${local.name_prefix}/api/image_tag"]
+  }
+  statement {
+    sid = "RollInstances"
+    actions = [
+      "autoscaling:StartInstanceRefresh",
+      "autoscaling:DescribeInstanceRefreshes",
+      "autoscaling:DescribeAutoScalingGroups",
+    ]
+    resources = ["*"]
+  }
+  statement {
+    sid     = "SmokeTestBucket"
+    actions = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
+    resources = [
+      "arn:aws:s3:::${local.name_prefix}-data-${local.account_id}",
+      "arn:aws:s3:::${local.name_prefix}-data-${local.account_id}/*",
+    ]
+  }
+  statement {
+    sid       = "SmokeTestKey"
+    actions   = ["kms:Decrypt", "kms:GenerateDataKey"]
+    resources = ["*"]
+    condition {
+      test     = "StringEquals"
+      variable = "kms:ViaService"
+      values   = ["s3.${var.region}.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role_policy" "deploy" {
+  role   = aws_iam_role.deploy.id
+  name   = "deploy-only"
+  policy = data.aws_iam_policy_document.deploy.json
 }
 
 output "state_bucket" { value = aws_s3_bucket.state.bucket }
